@@ -1,0 +1,52 @@
+{
+    "manifest_version": 3,
+    "name": "Research Web Clipper",
+    "description": "Save and organise web content with automatic citation tracking",
+    "version": "1.0",
+    "author": "Chukwuemeka Nwaneri",
+    "permissions": [
+      "storage",
+      "activeTab",
+      "notifications",
+      "contextMenus"
+    ],
+    "action": {
+      "default_popup": "popup.html",
+      "default_icon": {
+        "16": "assets/img/icon.png",
+        "48": "assets/img/icon.png",
+        "128": "assets/img/icon.png"
+      }
+    },
+    "icons": {
+      "16": "assets/img/icon.png",
+      "48": "assets/img/icon.png",
+      "128": "assets/img/icon.png"
+    },
+    "web_accessible_resources": [{
+        "resources": [
+            "assets/css/fonts/bootstrap-icons.woff2",
+            "assets/fonts/bootstrap-icons.woff"
+        ],
+        "matches": ["<all_urls>"]
+    }],    
+    "content_scripts": [{
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["assets/css/bootstrap-icons.css"]  
+    }],
+    "background": {
+      "service_worker": "background.js"
+    },
+    "commands": {
+      "save-clip": {
+        "suggested_key": {
+          "default": "Ctrl+Shift+S",
+          "mac": "Command+Shift+S"
+        },
+        "description": "Save current selection as clip"
+      }
+    }
+  }
+
+  
