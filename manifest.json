@@ -8,16 +8,19 @@
       "storage",
       "activeTab",
       "notifications",
-      "contextMenus"
+      "contextMenus",
+      "sidePanel"
     ],
     "action": {
-      "default_popup": "popup.html",
       "default_icon": {
         "16": "assets/img/icon.png",
         "48": "assets/img/icon.png",
         "128": "assets/img/icon.png"
       }
     },
+    "side_panel": {
+        "default_path": "sidepanel.html"
+    },    
     "icons": {
       "16": "assets/img/icon.png",
       "48": "assets/img/icon.png",

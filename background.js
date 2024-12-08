@@ -1,7 +1,8 @@
 // background.js
+chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
 
 const CHROME_SYNC_STORAGE_LIMIT = 102400; // 100KB limit
-const MAX_CLIP_LENGTH = 8000;
+const MAX_CLIP_LENGTH = 8192;
 
 // Handle messages from content script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -11,21 +12,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             .then(() => sendResponse({ success: true }))
             .catch(error => sendResponse({ success: false, error: error.message }));
         return true; // Important: indicates we'll send response asynchronously
-    }
-    
-    if (message.action === 'addTag') {
-        addTagToClip(message.clipId, message.tag)
-            .then(response => sendResponse(response))
-            .catch(error => sendResponse({ error: error.message }));
-        return true;
-    }
-    
-    if (message.action === 'removeTag') {
-        removeTagFromClip(message.clipId, message.tag)
-            .then(response => sendResponse(response))
-            .catch(error => sendResponse({ error: error.message }));
-        return true;
-    }    
+    }   
 });
 
 chrome.runtime.onInstalled.addListener(async () => {
@@ -82,6 +69,34 @@ async function saveClip(clipData) {
         // Save updated clips array
         await chrome.storage.sync.set({ clips });
         updateBadge(clips.length);
+
+        // Broadcast to all windows and tabs
+        try {
+            await chrome.runtime.sendMessage({
+                target: 'sidepanel',
+                action: 'sidePanel:updateClips',
+                clips: clips
+            });
+        } catch (error) {
+            // Ignore connection errors for closed sidepanels
+            if (!error.message.includes('Could not establish connection')) {
+                console.error('Error updating sidepanel:', error);
+            }
+        }    
+        
+        try {
+            await chrome.runtime.sendMessage({
+                target: 'sidepanel',
+                action: 'sidePanel:updateClips',
+                clips: clips
+            });
+        } catch (error) {
+            // Ignore connection errors for closed sidepanels
+            if (!error.message.includes('Could not establish connection')) {
+                console.error('Error updating sidepanel:', error);
+            }
+        }        
+
         return { success: true };        
 
     } catch (error) {
@@ -89,9 +104,6 @@ async function saveClip(clipData) {
         throw error;
     }
 }
-
-// Modified showNotification function
-
 
 // Generate unique ID for clips
 function generateId() {
@@ -168,50 +180,24 @@ chrome.commands.onCommand.addListener((command) => {
     }
 });
 
-async function addTagToClip(clipId, tag) {
-    try {
-        const result = await chrome.storage.sync.get(['clips']);
-        const clips = result.clips || [];
-        
-        const clipIndex = clips.findIndex(clip => clip.id === clipId);
-        if (clipIndex === -1) throw new Error('Clip not found');
-        
-        // Ensure tag is properly formatted
-        tag = tag.toLowerCase().trim();
-        
-        // Add tag if it doesn't exist
-        if (!clips[clipIndex].tags.includes(tag)) {
-            clips[clipIndex].tags.push(tag);
-            await chrome.storage.sync.set({ clips });
-            return { success: true };
-        }
-        
-        return { success: false, message: 'Tag already exists' };
-    } catch (error) {
-        console.error('Error adding tag:', error);
-        throw error;
-    }
-}
 
-async function removeTagFromClip(clipId, tag) {
-    try {
-        const result = await chrome.storage.sync.get(['clips']);
-        const clips = result.clips || [];
-        
-        const clipIndex = clips.findIndex(clip => clip.id === clipId);
-        if (clipIndex === -1) throw new Error('Clip not found');
-        
-        // Remove tag
-        const tagIndex = clips[clipIndex].tags.indexOf(tag);
-        if (tagIndex > -1) {
-            clips[clipIndex].tags.splice(tagIndex, 1);
-            await chrome.storage.sync.set({ clips });
-            return { success: true };
-        }
-        
-        return { success: false, message: 'Tag not found' };
-    } catch (error) {
-        console.error('Error removing tag:', error);
-        throw error;
+chrome.storage.onChanged.addListener((changes, namespace) => {
+    if (namespace === 'sync' && changes.clips) {
+        // Get all windows to find sidepanels
+        chrome.windows.getAll({ populate: true }, (windows) => {
+            windows.forEach(window => {
+                // Send update to sidepanel
+                chrome.runtime.sendMessage({
+                    target: 'sidepanel',
+                    action: 'sidePanel:updateClips',
+                    clips: changes.clips.newValue
+                }).catch(error => {
+                    // Ignore errors from closed sidepanels
+                    if (!error.message.includes('Could not establish connection')) {
+                        console.error('Error updating sidepanel:', error);
+                    }
+                });
+            });
+        });
     }
-}
+});
