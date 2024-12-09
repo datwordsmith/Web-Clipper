@@ -117,7 +117,7 @@ function showNotification(message, type = 'success') {
     chrome.notifications.create({
         type: 'basic',
         iconUrl: 'assets/img/icon.png',
-        title: type === 'error' ? 'Web Clipper Error' : 'Web Clipper',
+        title: type === 'error' ? 'Web Research Clipper Error' : 'Web Research Clipper',
         message: message,
         priority: type === 'error' ? 2 : 0
     });
@@ -130,7 +130,7 @@ chrome.runtime.onInstalled.addListener((details) => {
         chrome.storage.sync.set({ clips: [] });
 
         // Show welcome notification
-        showNotification('Web Clipper installed successfully! Start selecting text to save clips.');
+        showNotification('Web Research Clipper installed successfully! Start selecting text to save clips.');
     }
 });
 
