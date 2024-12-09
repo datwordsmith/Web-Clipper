@@ -7,10 +7,23 @@ function truncateText(text, maxLength = 120) {
     return text.substring(0, maxLength) + '...';
 }
 
+function searchAndHighlightClips(clips, searchTerm) {
+    if (!searchTerm) return clips;
+    
+    searchTerm = searchTerm.toLowerCase();
+    return clips.filter(clip => {
+        const textMatch = clip.selectedText?.toLowerCase().includes(searchTerm);
+        const titleMatch = clip.title?.toLowerCase().includes(searchTerm);
+        const authorMatch = clip.author?.toLowerCase().includes(searchTerm);
+        return textMatch || titleMatch || authorMatch;
+    });
+}
+
 function highlightMatch(text, searchTerm) {
-    if (!searchTerm) return text;
-    const regex = new RegExp(`(${searchTerm})`, 'gi');
-    return text.replace(regex, '<span class="highlight">$1</span>');
+    if (!searchTerm || !text) return text;
+    const escapedSearchTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(${escapedSearchTerm})`, 'gi');
+    return text.replace(regex, '<mark class="highlight">$1</mark>');
 }
 
 // Storage Management
@@ -35,8 +48,8 @@ function updateStorageInfo() {
                     <span>Storage Usage</span>
                     <span>${Math.round(quotaPercentage)}%</span>
                 </div>
-                <div class="progress" style="height: 4px;">
-                    <div class="progress-bar ${quotaPercentage > 80 ? 'bg-danger' : 'bg-primary'}" 
+                <div class="progress" style="">
+                    <div class="progress-bar progress-bar-striped ${quotaPercentage > 80 ? 'bg-danger' : 'bg-success'}" 
                          role="progressbar" 
                          style="width: ${quotaPercentage}%" 
                          aria-valuenow="${quotaPercentage}" 
@@ -59,25 +72,38 @@ function displayClips(clips, searchInput) {
 
     if (!clipsContainer) return;
 
-    if (clips.length === 0) {
+    if (!clips || clips.length === 0) {
         clipsContainer.innerHTML = '<p class="text-center text-muted">No clips saved yet.</p>';
         return;
-    }        
+    }
 
-    clipsContainer.innerHTML = clips.map((clip, index) => {
-        const displayedText = searchTerm
-            ? highlightMatch(clip.selectedText, searchTerm)
-            : truncateText(clip.selectedText);
+    const filteredClips = searchTerm ? searchAndHighlightClips(clips, searchTerm) : clips;
+
+    if (filteredClips.length === 0) {
+        clipsContainer.innerHTML = '<p class="text-center text-muted">No matching clips found.</p>';
+        return;
+    }
+
+    clipsContainer.innerHTML = filteredClips.map((clip, index) => {
+        const highlightedText = searchTerm ? 
+            highlightMatch(clip.selectedText, searchTerm) :
+            truncateText(clip.selectedText);
+        const highlightedTitle = searchTerm ? 
+            highlightMatch(clip.title || '', searchTerm) :
+            (clip.title || '');
+        const highlightedAuthor = searchTerm ? 
+            highlightMatch(clip.author || '', searchTerm) :
+            (clip.author || '');
 
         return `
             <div class="clip-item border rounded p-2 mb-2">
                 <div class="clip-content">
                     <div class="clip-metadata text-muted small mb-2">
-                        <div><strong>Source:</strong> ${clip.title}</div>
-                        <div><strong>Author:</strong> ${clip.author}</div>
+                        <div><strong>Source:</strong> ${highlightedTitle}</div>
+                        <div><strong>Author:</strong> ${highlightedAuthor}</div>
                         <div><strong>Date Clipped:</strong> ${new Date(clip.dateClipped).toLocaleDateString()}</div>
                     </div>
-                    <p class="mb-3">${displayedText}</p>
+                    <p class="mb-3">${highlightedText}</p>
                 </div>
                 <div class="btn-group btn-group-sm w-100">
                     <button class="btn btn-outline-info view-btn" data-index="${index}">
@@ -89,6 +115,9 @@ function displayClips(clips, searchInput) {
                     <button class="btn btn-outline-success copy-text-btn" data-key="clip_${clip.id}">
                         <i class="bi bi-files"></i> Copy
                     </button>
+                    <button class="btn btn-outline-primary email-btn" data-index="${index}">
+                        <i class="bi bi-envelope"></i> Email
+                    </button>                    
                     <button class="btn btn-outline-danger delete-btn" data-index="${index}">
                         <i class="bi bi-trash"></i> Delete
                     </button>
@@ -195,6 +224,26 @@ function attachEventListeners() {
                 showDeleteModal(index);
             });
         }
+
+        // Email button
+        const emailBtn = e.target.closest('.email-btn');
+        if (emailBtn) {
+            const index = parseInt(emailBtn.dataset.index, 10);
+            
+            chrome.storage.sync.get(null, (result) => {
+                const clipKeys = result.clipIndex || [];
+                const clipKey = clipKeys[index];
+                const clip = result[clipKey];
+                
+                if (clip) {
+                    emailClip(clip);
+                } else {
+                    console.error('No clip found for index:', index);
+                    showToast('Failed to find the clip for emailing', 'danger');
+                }
+            });
+            return;
+        }
     });
 }
 
@@ -214,6 +263,9 @@ function viewClip(index) {
                 <button class="btn btn-outline-success btn-sm" id="offcanvas-copy-btn">
                     <i class="bi bi-files"></i> Copy Text
                 </button>
+                <button class="btn btn-outline-primary btn-sm" id="offcanvas-email-btn">
+                    <i class="bi bi-envelope"></i> Email
+                </button>                
             `;
             
             // Event listeners for the offcnavas buttons
@@ -235,6 +287,10 @@ function viewClip(index) {
                         showOffcanvasToast('Failed to copy text', 'danger');
                     });
             });
+
+            document.getElementById('offcanvas-email-btn').addEventListener('click', () => {
+                emailClip(clip);
+            });            
 
             const metadataHTML = `
                 <p class="mb-1"><strong>Source:</strong> ${clip.title}</p>
@@ -358,6 +414,49 @@ function deleteClip() {
     });
 } 
 
+// Email clip
+function emailClip(clip) {
+    if (!clip) {
+        console.error('Email clip called with no clip data');
+        showToast('Clip data is missing', 'danger');
+        return;
+    }
+
+    try {
+        // Format the date properly
+        const clipDate = clip.dateClipped ? new Date(clip.dateClipped).toLocaleDateString() : 'Unknown Date';
+        
+        // Create a clean email body with proper formatting
+        const emailBody = `
+        Source: ${clip.title || 'Untitled'}
+        Author: ${clip.author || 'Unknown'}
+        Date: ${clipDate}
+        URL: ${clip.url || 'N/A'}
+
+        Clipped Text:
+        ${clip.selectedText || 'No text'}
+
+        Citation:
+        ${clip.author || 'Unknown Author'} (${clipDate}). ${clip.title || 'Untitled'}. Retrieved from ${clip.url || 'No URL'}`.trim();
+
+        // Create Gmail compose URL
+        const gmailURL = `https://mail.google.com/mail/u/0/?fs=1&tf=cm&source=mailto&to=&su=${encodeURIComponent(`Clip: ${clip.title || 'Untitled'}`)}&body=${encodeURIComponent(emailBody)}`;
+
+        // Open Gmail in a new tab
+        chrome.tabs.create({ url: gmailURL }, (tab) => {
+            if (chrome.runtime.lastError) {
+                console.error('Error opening Gmail:', chrome.runtime.lastError);
+                showToast('Failed to open Gmail', 'danger');
+                return;
+            }
+            showToast('Gmail opened with clip content');
+        });
+    } catch (error) {
+        console.error('Error in emailClip:', error);
+        showToast('Failed to generate email', 'danger');
+    }
+}
+
 
 // Show toast notification
 function showToast(message, type = 'success') {
@@ -466,15 +565,10 @@ document.addEventListener('DOMContentLoaded', () => {
     searchInput.addEventListener('input', (e) => {
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(() => {
-            const searchTerm = e.target.value.toLowerCase();
-            chrome.storage.sync.get(['clips'], (result) => {
-                const clips = result.clips || [];
-                const filteredClips = clips.filter(clip => 
-                    clip.selectedText.toLowerCase().includes(searchTerm) ||
-                    clip.title.toLowerCase().includes(searchTerm) ||
-                    clip.tags.some(tag => tag.toLowerCase().includes(searchTerm))
-                );
-                displayClips(filteredClips, searchInput);
+            chrome.storage.sync.get(null, (result) => {
+                const clipKeys = result.clipIndex || [];
+                const clips = clipKeys.map(key => result[key]).filter(Boolean);
+                displayClips(clips, searchInput);
             });
         }, 300);
     });
