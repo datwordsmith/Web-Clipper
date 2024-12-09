@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "Web Research Clipper",
-    "description": "Save and organise web content with automatic citation tracking",
+    "description": "Save, organise and cite web content with ease",
     "version": "1.0",
     "author": "Chukwuemeka Nwaneri",
     "permissions": [
