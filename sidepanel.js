@@ -83,10 +83,10 @@ function displayClips(clips, searchInput) {
                     <button class="btn btn-outline-info view-btn" data-index="${index}">
                         <i class="bi bi-eye"></i> View
                     </button>
-                    <button class="btn btn-outline-secondary copy-citation-btn" data-index="${index}">
+                    <button class="btn btn-outline-secondary copy-citation-btn" data-key="clip_${clip.id}">
                         <i class="bi bi-quote"></i> Citation
                     </button>
-                    <button class="btn btn-outline-success copy-text-btn" data-index="${index}">
+                    <button class="btn btn-outline-success copy-text-btn" data-key="clip_${clip.id}">
                         <i class="bi bi-files"></i> Copy
                     </button>
                     <button class="btn btn-outline-danger delete-btn" data-index="${index}">
@@ -166,132 +166,224 @@ function attachEventListeners() {
             const index = parseInt(viewBtn.dataset.index);
             viewClip(index);
             return;
-        }
+        }        
 
         // Copy citation button
         const citationBtn = e.target.closest('.copy-citation-btn');
         if (citationBtn) {
-            const index = parseInt(citationBtn.dataset.index);
-            copyCitation(index);
+            const clipKey = citationBtn.dataset.key;
+            copyCitation(clipKey);
             return;
-        }
+        }        
 
         // Copy text button
         const copyTextBtn = e.target.closest('.copy-text-btn');
         if (copyTextBtn) {
-            const index = parseInt(copyTextBtn.dataset.index);
-            copyText(index);
+            const clipKey = copyTextBtn.dataset.key;
+            copyText(clipKey);
             return;
-        }
+        }        
 
         // Delete button
         const deleteBtn = e.target.closest('.delete-btn');
         if (deleteBtn) {
             const index = parseInt(deleteBtn.dataset.index);
-            showDeleteModal(index);
+            chrome.storage.sync.get('clipIndex', (result) => {
+                const clipKeys = result.clipIndex || [];
+                currentClipKey = clipKeys[index];
+                currentClipIndex = index;
+                showDeleteModal(index);
+            });
         }
     });
 }
 
-    // View clip in offcanvas
-    function viewClip(index) {
-        chrome.storage.sync.get(['clips'], (result) => {
-            const clip = result.clips[index];
-            if (clip) {
-                //document.getElementById('clipOffcanvasLabel').textContent = `Clip from ${clip.title}`;
-                document.getElementById('clip-actions').innerHTML = `
-                    <button class="btn btn-outline-secondary btn-sm copy-citation-btn" data-index="${index}">
-                        <i class="bi bi-quote"></i> Copy Citation
-                    </button>
-                    <button class="btn btn-outline-success btn-sm copy-text-btn" data-index="${index}">
-                        <i class="bi bi-files"></i> Copy Text
-                    </button>
-                `;
-                
-                const metadataHTML = `
-                    <p class="mb-1"><strong>Source:</strong> ${clip.title}</p>
-                    <p class="mb-1"><strong>Author:</strong> ${clip.author}</p>
-                    <p class="mb-1"><strong>Date:</strong> ${clip.date}</p>
-                    <p class="mb-1"><strong>URL:</strong> <a href="${clip.url}" target="_blank">${clip.url}</a></p>
-                `;
-                
-                document.getElementById('clip-metadata').innerHTML = metadataHTML;
-                document.getElementById('full-clip-content').textContent = clip.selectedText;
-                
-                clipOffcanvas.show();
-            }
-        });
-    }
+// View clip in offcanvas
+function viewClip(index) {
+    chrome.storage.sync.get(null, (result) => {
+        const clipKeys = result.clipIndex || [];
+        const clipKey = clipKeys[index];
+        const clip = result[clipKey];
 
-    // Copy citation
-    function copyCitation(index) {
-        chrome.storage.sync.get(['clips'], (result) => {
-            const clip = result.clips[index];
-            const citation = `${clip.author} (${clip.date}). ${clip.title}. Retrieved from ${clip.url}`;
+        if (clip) {
+            const actionsContainer = document.getElementById('clip-actions');
+            actionsContainer.innerHTML = `
+                <button class="btn btn-outline-secondary btn-sm" id="offcanvas-citation-btn">
+                    <i class="bi bi-quote"></i> Copy Citation
+                </button>
+                <button class="btn btn-outline-success btn-sm" id="offcanvas-copy-btn">
+                    <i class="bi bi-files"></i> Copy Text
+                </button>
+            `;
+            
+            // Event listeners for the offcnavas buttons
+            document.getElementById('offcanvas-citation-btn').addEventListener('click', () => {
+                const citation = `${clip.author || 'Unknown Author'} (${clip.date || 'Unknown Date'}). ${clip.title || 'Untitled'}. Retrieved from ${clip.url || 'No URL'}`;
+                navigator.clipboard.writeText(citation)
+                    .then(() => showOffcanvasToast('Citation copied to clipboard'))
+                    .catch(err => {
+                        console.error('Clipboard error:', err);
+                        showOffcanvasToast('Failed to copy citation', 'danger');
+                    });
+            });            
+            
+            document.getElementById('offcanvas-copy-btn').addEventListener('click', () => {
+                navigator.clipboard.writeText(clip.selectedText)
+                    .then(() => showOffcanvasToast('Text copied to clipboard'))
+                    .catch(err => {
+                        console.error('Clipboard error:', err);
+                        showOffcanvasToast('Failed to copy text', 'danger');
+                    });
+            });
+
+            const metadataHTML = `
+                <p class="mb-1"><strong>Source:</strong> ${clip.title}</p>
+                <p class="mb-1"><strong>Author:</strong> ${clip.author}</p>
+                <p class="mb-1"><strong>Date:</strong> ${clip.date}</p>
+                <p class="mb-1"><strong>URL:</strong> <a href="${clip.url}" target="_blank">${clip.url}</a></p>
+            `;
+            
+            document.getElementById('clip-metadata').innerHTML = metadataHTML;
+            document.getElementById('full-clip-content').textContent = clip.selectedText;
+            
+            clipOffcanvas.show();
+        }
+    });
+}
+
+
+//offCanvas Toast
+function showOffcanvasToast(message, type = 'success') {
+    const toastContainer = document.createElement('div');
+    toastContainer.className = 'position-fixed top-0 start-50 translate-middle-x p-3';
+    toastContainer.style.zIndex = '1070';
+
+    toastContainer.innerHTML = `
+        <div class="toast align-items-center text-white bg-${type} border-0" role="alert">
+            <div class="d-flex">
+                <div class="toast-body">
+                    ${message}
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(toastContainer);
+
+    // Initialize Bootstrap toast
+    const toast = new bootstrap.Toast(toastContainer.querySelector('.toast'), {
+        autohide: true,
+        delay: 3000
+    });
+    
+    toast.show();
+
+    // Remove the container after the toast is hidden
+    toast._element.addEventListener('hidden.bs.toast', () => {
+        toastContainer.remove();
+    });
+}
+
+// Copy citation
+function copyCitation(clipKey) {
+    chrome.storage.sync.get([clipKey], (result) => {
+        if (chrome.runtime.lastError) {
+            console.error('Error accessing storage:', chrome.runtime.lastError.message);
+            showToast('Failed to access storage', 'danger');
+            return;
+        }
+        const clip = result[clipKey];
+        if (clip) {
+            const citation = `${clip.author || 'Unknown Author'} (${clip.date || 'Unknown Date'}). ${clip.title || 'Untitled'}. Retrieved from ${clip.url || 'No URL'}`;
             navigator.clipboard.writeText(citation)
                 .then(() => showToast('Citation copied to clipboard'))
-                .catch(err => showToast('Failed to copy citation', 'danger'));
-        });
-    }
+                .catch(err => {
+                    console.error('Clipboard error:', err);
+                    showToast('Failed to copy citation', 'danger');
+                });
+        } else {
+            console.warn('No clip found for key:', clipKey);
+            showToast('Clip not found', 'danger');
+        }
+    });
+}
 
-    // Copy text
-    function copyText(index) {
-        chrome.storage.sync.get(['clips'], (result) => {
-            const clip = result.clips[index];
+// Copy text
+function copyText(clipKey) {
+    chrome.storage.sync.get([clipKey], (result) => {
+        if (chrome.runtime.lastError) {
+            console.error('Error accessing storage:', chrome.runtime.lastError.message);
+            showToast('Failed to access storage', 'danger');
+            return;
+        }
+        const clip = result[clipKey];
+        if (clip && clip.selectedText) {
             navigator.clipboard.writeText(clip.selectedText)
                 .then(() => showToast('Text copied to clipboard'))
-                .catch(err => showToast('Failed to copy text', 'danger'));
-        });
-    }
+                .catch(err => {
+                    console.error('Clipboard error:', err);
+                    showToast('Failed to copy text', 'danger');
+                });
+        } else {
+            console.warn('No text found for key:', clipKey);
+            showToast('Clip or text not found', 'danger');
+        }
+    });
+}
 
-    // Show delete confirmation modal
-    function showDeleteModal(index) {
-        currentClipIndex = index;
-        deleteModal.show();
-    }
+// Show delete confirmation modal
+function showDeleteModal(index) {
+    currentClipIndex = index;
+    deleteModal.show();
+}
 
-    // Delete clip
-    function deleteClip() {
-        if (currentClipIndex === null) return;
+// Delete clip
+function deleteClip() {
+    if (currentClipKey === null) return;
+    
+    chrome.storage.sync.get(null, (result) => {
+        const clipIndex = result.clipIndex || [];
+        const updatedIndex = clipIndex.filter(key => key !== currentClipKey);
         
-        chrome.storage.sync.get(['clips'], (result) => {
-            const clips = result.clips || [];
-            clips.splice(currentClipIndex, 1);
-            chrome.storage.sync.set({ clips }, () => {
-                deleteModal.hide();
-                window.loadClips();
-                showToast('Clip deleted successfully');
-                currentClipIndex = null;
-            });
+        chrome.storage.sync.set({ 
+            clipIndex: updatedIndex,
+            [currentClipKey]: chrome.storage.sync.ITEM_REMOVED
+        }, () => {
+            deleteModal.hide();
+            window.loadClips();
+            showToast('Clip deleted successfully');
+            currentClipKey = null;
         });
-    }  
+    });
+} 
 
 
-    // Show toast notification
-    function showToast(message, type = 'success') {
-        const toastContainer = document.createElement('div');
-        toastContainer.className = 'position-fixed bottom-0 start-50 translate-middle-x p-3';
-        toastContainer.style.zIndex = '11';
+// Show toast notification
+function showToast(message, type = 'success') {
+    const toastContainer = document.createElement('div');
+    toastContainer.className = 'position-fixed bottom-0 start-50 translate-middle-x p-3';
+    toastContainer.style.zIndex = '11';
 
-        toastContainer.innerHTML = `
-            <div class="toast align-items-center text-white bg-${type} border-0" role="alert">
-                <div class="d-flex">
-                    <div class="toast-body">
-                        ${message}
-                    </div>
-                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+    toastContainer.innerHTML = `
+        <div class="toast align-items-center text-white bg-${type} border-0" role="alert">
+            <div class="d-flex">
+                <div class="toast-body">
+                    ${message}
                 </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
             </div>
-        `;
+        </div>
+    `;
 
-        document.body.appendChild(toastContainer);
-        const toast = new bootstrap.Toast(toastContainer.querySelector('.toast'));
-        toast.show();
+    document.body.appendChild(toastContainer);
+    const toast = new bootstrap.Toast(toastContainer.querySelector('.toast'));
+    toast.show();
 
-        toast._element.addEventListener('hidden.bs.toast', () => {
-            toastContainer.remove();
-        });
-    }
+    toast._element.addEventListener('hidden.bs.toast', () => {
+        toastContainer.remove();
+    });
+}
 
 
 const clipsContainer = document.getElementById('clipsContainer');
@@ -315,12 +407,15 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             console.error('Error updating storage info:', error);
         }
+        
         if (!clips) {
-            chrome.storage.sync.get(['clips'], (result) => {
-                displayClips(result.clips || [], searchInput);
+            chrome.storage.sync.get(null, (result) => {
+                const clipKeys = result.clipIndex || [];
+                const clips = clipKeys.map(key => result[key]).filter(Boolean);
+                displayClips(clips, document.getElementById('searchInput'));
             });
         } else {
-            displayClips(clips, searchInput);
+            displayClips(clips, document.getElementById('searchInput'));
         }
     }
 
@@ -359,6 +454,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Event Listeners Setup
     document.querySelector('#deleteClipModal .btn-danger').addEventListener('click', deleteClip);
+
+    document.getElementById('clipOffcanvas').addEventListener('hidden.bs.offcanvas', () => {
+        const citationBtn = document.getElementById('offcanvas-citation-btn');
+        const copyBtn = document.getElementById('offcanvas-copy-btn');
+        
+        if (citationBtn) citationBtn.remove();
+        if (copyBtn) copyBtn.remove();
+    });    
 
     searchInput.addEventListener('input', (e) => {
         clearTimeout(debounceTimer);

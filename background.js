@@ -37,10 +37,6 @@ async function saveClip(clipData) {
             throw new Error('CLIP_TOO_LONG');
         }
 
-        // Get existing clips
-        const result = await chrome.storage.sync.get(['clips']);
-        const clips = result.clips || [];
-
         // Format the clip data
         const newClip = {
             id: generateId(),
@@ -54,61 +50,61 @@ async function saveClip(clipData) {
             contextBefore: clipData.contextBefore || '',
             contextAfter: clipData.contextAfter || ''
         };
-        
+
         // Calculate approximate size of new clip
         const newClipSize = JSON.stringify(newClip).length;
-
-        // Check if adding this clip would exceed quota
         if (newClipSize > CHROME_SYNC_STORAGE_LIMIT) {
             throw new Error('CLIP_TOO_LARGE');
         }
 
-        // Add new clip to beginning of array
-        clips.unshift(newClip);
-        
-        // Save updated clips array
-        await chrome.storage.sync.set({ clips });
-        updateBadge(clips.length);
+        // Get existing clip IDs
+        const result = await chrome.storage.sync.get(['clipIndex']);
+        const clipIndex = result.clipIndex || [];
 
-        // Broadcast to all windows and tabs
-        try {
-            await chrome.runtime.sendMessage({
-                target: 'sidepanel',
-                action: 'sidePanel:updateClips',
-                clips: clips
-            });
-        } catch (error) {
-            // Ignore connection errors for closed sidepanels
-            if (!error.message.includes('Could not establish connection')) {
-                console.error('Error updating sidepanel:', error);
-            }
-        }    
-        
-        try {
-            await chrome.runtime.sendMessage({
-                target: 'sidepanel',
-                action: 'sidePanel:updateClips',
-                clips: clips
-            });
-        } catch (error) {
-            // Ignore connection errors for closed sidepanels
-            if (!error.message.includes('Could not establish connection')) {
-                console.error('Error updating sidepanel:', error);
-            }
-        }        
+        // Add new clip to storage with its ID as the key
+        const clipKey = `clip_${newClip.id}`;
+        await chrome.storage.sync.set({
+            [clipKey]: newClip,
+            clipIndex: [clipKey, ...clipIndex].slice(0, 50) // Limit to 50 clips
+        });
 
-        return { success: true };        
+        // Update badge count
+        updateBadge(clipIndex.length + 1);
 
+        // Broadcast updates to sidepanel
+        broadcastClipUpdate();
+
+        return { success: true };
     } catch (error) {
         console.error('Error saving clip:', error);
         throw error;
     }
 }
 
+
 // Generate unique ID for clips
 function generateId() {
-    return Date.now().toString(36) + Math.random().toString(36).substr(2);
+    return Date.now().toString(36) + Math.random().toString(36).substring(2, 15);
 }
+
+async function broadcastClipUpdate() {
+    try {
+        const result = await chrome.storage.sync.get(null);
+        const clipKeys = result.clipIndex || [];
+        const clips = clipKeys.map(key => result[key]).filter(Boolean);
+
+        await chrome.runtime.sendMessage({
+            target: 'sidepanel',
+            action: 'sidePanel:updateClips',
+            clips
+        });
+    } catch (error) {
+        if (!error.message.includes('Could not establish connection')) {
+            console.error('Error broadcasting clip update:', error);
+        }
+    }
+}
+
 
 // Update extension badge
 function updateBadge(count) {
