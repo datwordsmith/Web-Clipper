@@ -14,18 +14,20 @@
     ],
     "action": {
       "default_icon": {
-        "16": "assets/img/icon.png",
-        "48": "assets/img/icon.png",
-        "128": "assets/img/icon.png"
+        "16": "assets/img/Web-Research-Clipper-16.png",
+        "32": "assets/img/Web-Research-Clipper-32.png",
+        "48": "assets/img/Web-Research-Clipper-48.png",
+        "128": "assets/img/Web-Research-Clipper-128.png"
       }
     },
     "side_panel": {
         "default_path": "sidepanel.html"
     },    
     "icons": {
-      "16": "assets/img/icon.png",
-      "48": "assets/img/icon.png",
-      "128": "assets/img/icon.png"
+      "16": "assets/img/Web-Research-Clipper-16.png",
+      "32": "assets/img/Web-Research-Clipper-32.png",
+      "48": "assets/img/Web-Research-Clipper-48.png",
+      "128": "assets/img/Web-Research-Clipper-128.png"
     },
     "web_accessible_resources": [{
         "resources": [
