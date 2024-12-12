@@ -9,8 +9,7 @@
       "activeTab",
       "notifications",
       "contextMenus",
-      "sidePanel",
-      "tabs"
+      "sidePanel"
     ],
     "action": {
       "default_icon": {

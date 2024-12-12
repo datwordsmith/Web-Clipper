@@ -1,9 +1,19 @@
 // Constants
 const CHROME_SYNC_STORAGE_LIMIT = 102400;
 
+function escapeHTML(text) {
+    if (!text) return '';
+    return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
 // Utility Functions
 function truncateText(text, maxLength = 120) {
-    if (text.length <= maxLength) return text;
+    if (!text || text.length <= maxLength) return text;
     return text.substring(0, maxLength) + '...';
 }
 
@@ -20,10 +30,11 @@ function searchAndHighlightClips(clips, searchTerm) {
 }
 
 function highlightMatch(text, searchTerm) {
-    if (!searchTerm || !text) return text;
-    const escapedSearchTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (!searchTerm || !text) return escapeHTML(text);
+    const escapedText = escapeHTML(text);
+    const escapedSearchTerm = escapeHTML(searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
     const regex = new RegExp(`(${escapedSearchTerm})`, 'gi');
-    return text.replace(regex, '<mark class="highlight">$1</mark>');
+    return escapedText.replace(regex, '<mark class="highlight">$1</mark>');
 }
 
 // Storage Management
@@ -87,13 +98,13 @@ function displayClips(clips, searchInput) {
     clipsContainer.innerHTML = filteredClips.map((clip, index) => {
         const highlightedText = searchTerm ? 
             highlightMatch(clip.selectedText, searchTerm) :
-            truncateText(clip.selectedText);
+            escapeHTML(truncateText(clip.selectedText));
         const highlightedTitle = searchTerm ? 
             highlightMatch(clip.title || '', searchTerm) :
-            (clip.title || '');
+            escapeHTML(clip.title || '');
         const highlightedAuthor = searchTerm ? 
             highlightMatch(clip.author || '', searchTerm) :
-            (clip.author || '');
+            escapeHTML(clip.author || '');
 
         return `
             <div class="clip-item border rounded p-2 mb-2">
@@ -103,7 +114,7 @@ function displayClips(clips, searchInput) {
                         <div><strong>Author:</strong> ${highlightedAuthor}</div>
                         <div><strong>Date Clipped:</strong> ${new Date(clip.dateClipped).toLocaleDateString()}</div>
                     </div>
-                    <p class="mb-3">${highlightedText}</p>
+                    <pre class="mb-3 text-wrap"><code>${highlightedText}</code></pre>
                 </div>
                 <div class="btn-group btn-group-sm w-100">
                     <button class="btn btn-outline-info view-btn" data-index="${index}">
