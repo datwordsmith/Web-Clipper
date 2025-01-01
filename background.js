@@ -105,12 +105,52 @@ async function broadcastClipUpdate() {
     }
 }
 
+async function updateBadgeFromStorage() {
+    try {
+        const result = await chrome.storage.sync.get(['clipIndex']);
+        const count = (result.clipIndex || []).length;
+        updateBadge(count);
+    } catch (error) {
+        console.error('Error updating badge from storage:', error);
+    }
+}
+
 
 // Update extension badge
 function updateBadge(count) {
-    chrome.action.setBadgeText({ text: count.toString() });
-    chrome.action.setBadgeBackgroundColor({ color: '#4a90e2' });
+    if (count === 0) {
+        chrome.action.setBadgeText({ text: '' });
+    } else {
+        chrome.action.setBadgeText({ text: count.toString() });
+        chrome.action.setBadgeBackgroundColor({ color: '#4a90e2' });
+    }
 }
+
+chrome.storage.onChanged.addListener((changes, namespace) => {
+    if (namespace === 'sync' && changes.clipIndex) {
+        updateBadgeFromStorage();
+    }
+});
+
+//Message listener for clip deletion
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action === 'clipDeleted') {
+        // Update badge with new count
+        updateBadge(message.clipIndex.length);
+        
+        // Notify any open sidepanels about the change
+        chrome.runtime.sendMessage({
+            target: 'sidepanel',
+            action: 'sidePanel:updateClips',
+            clips: message.clipIndex
+        }).catch(error => {
+            // Ignore errors from closed sidepanels
+            if (!error.message.includes('Could not establish connection')) {
+                console.error('Error broadcasting clip update:', error);
+            }
+        });
+    }
+});
 
 // Show chrome notification
 function showNotification(message, type = 'success') {

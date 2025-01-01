@@ -38,17 +38,23 @@ function highlightMatch(text, searchTerm) {
 }
 
 // Storage Management
-function updateStorageInfo() {
+async function updateStorageInfo() {
     if (!chrome.storage || !chrome.storage.sync) {
         console.error('Chrome storage API not available');
         return;
     }
 
-    chrome.storage.sync.getBytesInUse(null, (bytesInUse) => {
-        if (chrome.runtime.lastError) {
-            console.error('Error accessing storage:', chrome.runtime.lastError);
-            return;
-        }
+    try {
+        const bytesInUse = await new Promise((resolve, reject) => {
+            chrome.storage.sync.getBytesInUse(null, (bytes) => {
+                if (chrome.runtime.lastError) {
+                    reject(chrome.runtime.lastError);
+                } else {
+                    resolve(bytes);
+                }
+            });
+        });
+
         const quotaPercentage = (bytesInUse / CHROME_SYNC_STORAGE_LIMIT) * 100;
         const storageInfo = document.getElementById('storageInfo');
         if (!storageInfo) return;
@@ -59,7 +65,7 @@ function updateStorageInfo() {
                     <span>Storage Usage</span>
                     <span>${Math.round(quotaPercentage)}%</span>
                 </div>
-                <div class="progress" style="">
+                <div class="progress">
                     <div class="progress-bar progress-bar-striped ${quotaPercentage > 80 ? 'bg-danger' : 'bg-success'}" 
                          role="progressbar" 
                          style="width: ${quotaPercentage}%" 
@@ -73,7 +79,17 @@ function updateStorageInfo() {
                     : ''}
             </div>
         `;
-    });
+    } catch (error) {
+        console.error('Error updating storage info:', error);
+        const storageInfo = document.getElementById('storageInfo');
+        if (storageInfo) {
+            storageInfo.innerHTML = `
+                <div class="alert alert-warning small">
+                    Unable to fetch storage information
+                </div>
+            `;
+        }
+    }
 }
 
 // Core Display Function
@@ -409,21 +425,46 @@ function showDeleteModal(index) {
 function deleteClip() {
     if (currentClipKey === null) return;
     
-    chrome.storage.sync.get(null, (result) => {
-        const clipIndex = result.clipIndex || [];
-        const updatedIndex = clipIndex.filter(key => key !== currentClipKey);
-        
-        chrome.storage.sync.set({ 
-            clipIndex: updatedIndex,
-            [currentClipKey]: chrome.storage.sync.ITEM_REMOVED
-        }, () => {
+    chrome.storage.sync.get(null, async (result) => {
+        try {
+            const clipIndex = result.clipIndex || [];
+            const updatedIndex = clipIndex.filter(key => key !== currentClipKey);
+            
+            // Create an update object
+            const updates = {
+                clipIndex: updatedIndex
+            };
+            updates[currentClipKey] = null; // Mark for deletion
+            
+            // Update storage
+            await chrome.storage.sync.set(updates);
+            
+            // Remove the deleted item
+            await chrome.storage.sync.remove(currentClipKey);
+            
+            // Hide modal and update UI
             deleteModal.hide();
             window.loadClips();
             showToast('Clip deleted successfully');
+            
+            // Update storage info
+            updateStorageInfo();
+            
+            // Notify background script about deletion
+            chrome.runtime.sendMessage({
+                action: 'clipDeleted',
+                clipIndex: updatedIndex
+            });
+            
+            // Reset current clip key
             currentClipKey = null;
-        });
+            
+        } catch (error) {
+            console.error('Error deleting clip:', error);
+            showToast('Error deleting clip', 'danger');
+        }
     });
-} 
+}
 
 // Email clip
 function emailClip(clip) {
