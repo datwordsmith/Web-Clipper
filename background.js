@@ -156,7 +156,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 function showNotification(message, type = 'success') {
     chrome.notifications.create({
         type: 'basic',
-        iconUrl: 'assets/img/icon.png',
+        iconUrl: 'assets/img/Web-Research-Clipper-48.png',
         title: type === 'error' ? 'Web Research Clipper Error' : 'Web Research Clipper',
         message: message,
         priority: type === 'error' ? 2 : 0
