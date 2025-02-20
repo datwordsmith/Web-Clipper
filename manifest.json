@@ -31,7 +31,8 @@
     "web_accessible_resources": [{
         "resources": [
             "assets/css/fonts/bootstrap-icons.woff2",
-            "assets/fonts/bootstrap-icons.woff"
+            "assets/fonts/bootstrap-icons.woff",
+            "assets/img/Web-Research-Clipper-16.png"
         ],
         "matches": ["<all_urls>"]
     }],    

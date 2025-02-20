@@ -3,45 +3,41 @@ const style = document.createElement('style');
 style.textContent = `
     .web-clipper-button-group {
         position: fixed;
-        background: #ffffff;
-        border: 1px solid #ddd;
-        padding: 8px;
-        border-radius: 4px;
+        background: #2d2d2d;
+        padding: 4px;
+        border-radius: 3px;
         display: flex;
-        gap: 8px;
+        gap: 4px;
         z-index: 2147483647;
-        font-family: Arial, sans-serif;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        font-family: system-ui, -apple-system, sans-serif;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
         user-select: none;
-    }
+    }        
 
     .web-clipper-button {
-        padding: 8px 12px;
-        border-radius: 4px;
+        padding: 4px 8px;
+        border-radius: 2px;
         cursor: pointer;
         display: flex;
         align-items: center;
-        gap: 6px;
-        font-size: 14px;
-        transition: all 0.2s ease;
+        gap: 4px;
+        font-size: 12px;
+        transition: all 0.15s ease;
+        border: none;
+        background: transparent;
+        color: #ffffff;
+    }
+
+    .web-clipper-button:hover {
+        background: rgba(255, 255, 255, 0.1);
     }
 
     .web-clipper-save-button {
-        background: #198754;
-        color: white;
+        background: #18b713;
     }
 
     .web-clipper-save-button:hover {
-        background: #146c43;
-    }
-
-    .web-clipper-ignore-button {
-        background: #6c757d;
-        color: white;
-    }
-
-    .web-clipper-ignore-button:hover {
-        background: #5c636a;
+        background: rgba(255, 255, 255, 0.2);
     }
 `;
 document.head.appendChild(style);
@@ -70,12 +66,10 @@ function handleSelection(event) {
                 contextAfter: getContextAfter(selection)
             };
 
-            const scrollX = window.scrollX || window.pageXOffset;
-            const scrollY = window.scrollY || window.pageYOffset;
-            
+           
             showClipButton({
-                x: rect.left + scrollX + (rect.width / 2),
-                y: rect.bottom + scrollY
+                x: rect.left + window.scrollX,
+                y: rect.bottom + window.scrollY                
             });
         }
     }, 10);
@@ -128,17 +122,46 @@ function showClipButton(position) {
 
     const buttonGroup = document.createElement('div');
     buttonGroup.className = 'web-clipper-button-group';
-    buttonGroup.style.left = `${Math.min(position.x, window.innerWidth - 200)}px`;
-    buttonGroup.style.top = `${position.y + 10}px`;
 
+    // Position the button group directly at the left edge
+    buttonGroup.style.left = `${position.x}px`;
+    buttonGroup.style.top = `${position.y}px`;
+
+    // Create save button with icon
     const saveButton = document.createElement('button');
     saveButton.className = 'web-clipper-button web-clipper-save-button';
-    saveButton.innerHTML = '<span>Save Clip</span>';
+    
+    // Create icon element for save button
+    const saveIcon = document.createElement('img');
+    saveIcon.src = chrome.runtime.getURL('assets/img/Web-Research-Clipper-16.png');
+    saveIcon.style.width = '16px';
+    saveIcon.style.height = '16px';
+    saveIcon.style.borderRadius = '3px';
+    saveIcon.style.backgroundColor = '#ffffff';
+    saveIcon.style.padding = '2px';     
+    
+    saveButton.appendChild(saveIcon);
+    saveButton.appendChild(document.createElement('span')).textContent = 'Save Clip';
     saveButton.addEventListener('click', saveClip);
 
+    // Create ignore button with icon
     const ignoreButton = document.createElement('button');
     ignoreButton.className = 'web-clipper-button web-clipper-ignore-button';
-    ignoreButton.innerHTML = '<span>Ignore</span>';
+    
+    // Create icon for ignore button using an SVG
+    const ignoreIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    ignoreIcon.setAttribute('width', '16');
+    ignoreIcon.setAttribute('height', '16');
+    ignoreIcon.setAttribute('viewBox', '0 0 24 24');
+    ignoreIcon.setAttribute('fill', 'none');
+    ignoreIcon.setAttribute('stroke', 'currentColor');
+    ignoreIcon.setAttribute('stroke-width', '2');
+    ignoreIcon.setAttribute('stroke-linecap', 'round');
+    ignoreIcon.setAttribute('stroke-linejoin', 'round');
+    ignoreIcon.innerHTML = '<line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>';
+    
+    ignoreButton.appendChild(ignoreIcon);
+    ignoreButton.appendChild(document.createElement('span')).textContent = 'Ignore';
     ignoreButton.addEventListener('click', () => {
         buttonGroup.remove();
         clearSelection();
@@ -153,8 +176,16 @@ function showClipButton(position) {
     document.addEventListener('selectionchange', handleDeselection);
     document.addEventListener('scroll', () => buttonGroup.remove());
     window.addEventListener('resize', () => buttonGroup.remove());
-}
 
+    // Add automatic cleanup after 5 seconds
+    setTimeout(() => {
+        if (buttonGroup.parentNode) {
+            buttonGroup.remove();
+            clearSelection();
+            cleanupListeners();
+        }
+    }, 5000);
+}
 // Clear selection
 function clearSelection() {
     if (window.getSelection) {
