@@ -17,10 +17,10 @@ A browser extension for students, researchers, and professionals who want to **c
 ## 🚀 Getting Started
 
 1. **Install from the Chrome Web Store**  
-   → [Add to Chrome](https://chromewebstore.google.com/detail/web-research-clipper/kcjbekkcfhcamkohlffdocmnmjnojmkl)
+   → <a href="https://chromewebstore.google.com/detail/web-research-clipper/kcjbekkcfhcamkohlffdocmnmjnojmkl" target="_blank" rel="noopener noreferrer">Add to Chrome</a>
 
 2. **Install from Microsoft Edge Add-ons**  
-   → [Get it on Edge](https://microsoftedge.microsoft.com/addons/detail/web-research-clipper/megmggaappdidanblkheacedkfghicfp?hl=en-GB)
+   → <a href="https://microsoftedge.microsoft.com/addons/detail/web-research-clipper/megmggaappdidanblkheacedkfghicfp?hl" target="_blank" rel="noopener noreferrer">Get it on Edge</a>
 
 3. Once installed, pin the extension to your toolbar and start highlighting text on any webpage.
 
@@ -84,6 +84,8 @@ This project is licensed under the [MIT License](LICENSE.txt) — feel free to r
 
 ## 🙌 Acknowledgments
 
-Built with ❤️ by [Chukwuemeka Nwaneri](https://linkedin.com/in/nwanerichukwuemeka) to simplify research for everyone.
+<p align="center">
+  Built with ❤️ by <a href="https://linkedin.com/in/nwanerichukwuemeka" target="_blank" rel="noopener noreferrer">Chukwuemeka Nwaneri</a> to simplify research for everyone.
+</p>
 
 ---
